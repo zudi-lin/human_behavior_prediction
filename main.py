@@ -13,8 +13,9 @@ from utils.utils import *
 EPOCH = 100
 BATCH_SIZE = 16
 LR = 0.01
-NUM_KERNELS = 32
-POOLING = 'max_pool'
+NUM_KERNELS = int(sys.argv[1])
+POOLING = 'avg_pool'
+NON_LOCAL = False
 
 device = ('cuda' if torch.cuda.is_available() else 'cpu')
 print('Device: ', device)
@@ -30,11 +31,13 @@ def main():
         prYellow('Start training for the %d/%d cross-validation fold.' % (idx+1, N_FOLD))
 
         prGreen('==> Building model..')
-        model = GameModelPooling(kernels=NUM_KERNELS, use_bn=True, mode=POOLING, non_local=False)
+        model = GameModelPooling(kernels=NUM_KERNELS, use_bn=True, mode=POOLING, non_local=NON_LOCAL)
         model_name = model.__class__.__name__
         print('model: ', model_name)
         print('Total number of parameters: ', end='')
-        prGreen(sum([param.nelement() for param in model.parameters()]))
+        total_num_param = sum([param.nelement() for param in model.parameters()])
+        prGreen(total_num_param)
+
         model = model.to(device)
         optimizer = torch.optim.SGD(model.parameters(), lr=LR, momentum=0.9, weight_decay=1e-3)
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[EPOCH-40, EPOCH-20], gamma=0.1)
@@ -63,8 +66,8 @@ def main():
     prYellow('Save training/validation results===>')
     if not os.path.exists('results/'):
         os.mkdir('results/')
-    with open('results/results.txt', 'a+') as f:
-        f.write('%s\t%d\n' % (POOLING, NUM_KERNELS))
+    with open('results/results_%s_%s.txt' % (POOLING, NON_LOCAL), 'a+') as f:
+        f.write('%s\t%d\t%s\t%d\n' % (POOLING, NUM_KERNELS, NON_LOCAL, total_num_param))
         for ii in range(len(TRAIN_LOSS)):
             f.write('%f %f %f %f\n' % (TRAIN_LOSS[ii], TRAIN_ACCU[ii], VAL_LOSS[ii], VAL_ACCU[ii]))
         f.write('\n')
