@@ -25,7 +25,7 @@ class GameDataset(torch.utils.data.Dataset):
             payoff_matrix_split = np.split(payoff_matrix, N_FOLD, axis=0)
 
         if prob_file is not None:
-            col_prob = np.genfromtxt('hb_train_truth.csv', delimiter=',', skip_header=1)
+            col_prob = np.genfromtxt(prob_file, delimiter=',', skip_header=1)
             col_action = col_prob[:,-1]
             col_prob = col_prob[:,:3]
             col_action_split = np.split(col_action, N_FOLD, axis=0)

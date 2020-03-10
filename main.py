@@ -1,3 +1,4 @@
+import os, sys
 import random
 import numpy as np
 
@@ -7,12 +8,12 @@ import torch.nn.functional as F
 
 from model import GameModelPooling
 from dataset import N_FOLD, GameDataset
-from utils import *
+from utils.utils import *
 
 EPOCH = 100
 BATCH_SIZE = 16
 LR = 0.01
-NUM_KERNELS = 256
+NUM_KERNELS = 32
 POOLING = 'max_pool'
 
 device = ('cuda' if torch.cuda.is_available() else 'cpu')
@@ -29,7 +30,7 @@ def main():
         prYellow('Start training for the %d/%d cross-validation fold.' % (idx+1, N_FOLD))
 
         prGreen('==> Building model..')
-        model = GameModelPooling(kernels=NUM_KERNELS, use_bn=True, mode=POOLING, non_local=True)
+        model = GameModelPooling(kernels=NUM_KERNELS, use_bn=True, mode=POOLING, non_local=False)
         model_name = model.__class__.__name__
         print('model: ', model_name)
         print('Total number of parameters: ', end='')
@@ -38,8 +39,8 @@ def main():
         optimizer = torch.optim.SGD(model.parameters(), lr=LR, momentum=0.9, weight_decay=1e-3)
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[EPOCH-40, EPOCH-20], gamma=0.1)
 
-        train_dataset = GameDataset(fold_index=idx, mode='train', prob_file='hb_train_truth.csv')
-        val_dataset = GameDataset(fold_index=idx, mode='val', prob_file='hb_train_truth.csv')
+        train_dataset = GameDataset(fold_index=idx, mode='train', prob_file='data/hb_train_truth.csv', feature_file='data/hb_train_feature.csv')
+        val_dataset = GameDataset(fold_index=idx, mode='val', prob_file='data/hb_train_truth.csv', feature_file='data/hb_train_feature.csv')
         print('Number of training samples: ', len(train_dataset))
         print('Number of val samples: ', len(val_dataset))
         train_loader = torch.utils.data.DataLoader(
@@ -59,7 +60,10 @@ def main():
         VAL_LOSS.append(val_loss)
         VAL_ACCU.append(val_accu)
 
-    with open('results.txt', 'a+') as f:
+    prYellow('Save training/validation results===>')
+    if not os.path.exists('results/'):
+        os.mkdir('results/')
+    with open('results/results.txt', 'a+') as f:
         f.write('%s\t%d\n' % (POOLING, NUM_KERNELS))
         for ii in range(len(TRAIN_LOSS)):
             f.write('%f %f %f %f\n' % (TRAIN_LOSS[ii], TRAIN_ACCU[ii], VAL_LOSS[ii], VAL_ACCU[ii]))
