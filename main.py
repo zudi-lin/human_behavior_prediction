@@ -15,7 +15,7 @@ BATCH_SIZE = 16
 LR = 0.01
 NUM_KERNELS = int(sys.argv[1])
 POOLING = 'avg_pool'
-NON_LOCAL = False
+NON_LOCAL = True
 
 device = ('cuda' if torch.cuda.is_available() else 'cpu')
 print('Device: ', device)
@@ -84,10 +84,15 @@ def train(train_loader, model, optimizer, epoch, augmentation=False):
     for i, batch in enumerate(train_loader): 
         sample, label = batch['sample'], batch['label']
         label = label.unsqueeze(1)
-
         sample, label = sample.to(device), label.to(device)
-        output = model(sample)
-        row_prob = output.sum(3)
+
+        if augmentation and random.random() < 0.5: 
+            sample = torch.flip(sample, [1])
+            output = model(sample)
+            row_prob = output.sum(2)
+        else:
+            output = model(sample)
+            row_prob = output.sum(3)
 
         loss = F.mse_loss(row_prob, label, reduction='mean')
 

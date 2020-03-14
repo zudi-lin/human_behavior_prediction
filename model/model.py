@@ -4,7 +4,8 @@ import torch.nn.functional as F
 from .non_local import NONLocalBlock2D
 
 class GameModelPooling(nn.Module):
-    def __init__(self, in_planes=2, out_planes=1, kernels=8, mode='max_pool', bias=True, use_bn=False, non_local=False):
+    def __init__(self, in_planes=2, out_planes=1, kernels=8, mode='max_pool', 
+                 bias=True, use_bn=False, non_local=False):
         super().__init__()
 
         assert mode in ['max_pool', 'avg_pool']
