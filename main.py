@@ -1,5 +1,6 @@
 import os, sys
 import random
+import argparse
 import numpy as np
 
 import torch
@@ -10,15 +11,22 @@ from model import GameModelPooling
 from dataset import N_FOLD, GameDataset
 from utils.utils import *
 
-EPOCH = 100
-BATCH_SIZE = 16
-LR = 0.01
-NUM_KERNELS = int(sys.argv[1])
-POOLING = 'avg_pool'
-NON_LOCAL = True
-
 device = ('cuda' if torch.cuda.is_available() else 'cpu')
 print('Device: ', device)
+
+parser = argparse.ArgumentParser(description='Human Behavior Prediction')
+parser.add_argument('--num-kernels', default=128, type=int, help='number of kernels')
+parser.add_argument('--pooling', default='max_pool', type=str, help='pooling mode')
+parser.add_argument('--non-local', action='store_true', help='use non-local module')
+parser.add_argument('--bn', action='store_true', help='use batch normalization')
+parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+parser.add_argument('--wd', default=5e-4, type=float, help='weight decay')
+parser.add_argument('--epoch', default=100, type=int, help='training epochs')
+parser.add_argument('--batch-size', type=int, default=16, metavar='N',
+                    help='input batch size for training (default: 16)')
+parser.add_argument('--aug', action='store_true', help='use data augmentation')  
+args = parser.parse_args()
+print(args)
 
 def main():
 
@@ -31,7 +39,7 @@ def main():
         prYellow('Start training for the %d/%d cross-validation fold.' % (idx+1, N_FOLD))
 
         prGreen('==> Building model..')
-        model = GameModelPooling(kernels=NUM_KERNELS, use_bn=True, mode=POOLING, non_local=NON_LOCAL)
+        model = GameModelPooling(kernels=args.num_kernels, use_bn=args.bn, mode=args.pooling, non_local=args.non_local)
         model_name = model.__class__.__name__
         print('model: ', model_name)
         print('Total number of parameters: ', end='')
@@ -39,21 +47,21 @@ def main():
         prGreen(total_num_param)
 
         model = model.to(device)
-        optimizer = torch.optim.SGD(model.parameters(), lr=LR, momentum=0.9, weight_decay=1e-3)
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[EPOCH-40, EPOCH-20], gamma=0.1)
+        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.wd)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[args.epoch-40, args.epoch-20], gamma=0.1)
 
         train_dataset = GameDataset(fold_index=idx, mode='train', prob_file='data/hb_train_truth.csv', feature_file='data/hb_train_feature.csv')
         val_dataset = GameDataset(fold_index=idx, mode='val', prob_file='data/hb_train_truth.csv', feature_file='data/hb_train_feature.csv')
         print('Number of training samples: ', len(train_dataset))
         print('Number of val samples: ', len(val_dataset))
         train_loader = torch.utils.data.DataLoader(
-                train_dataset, batch_size=BATCH_SIZE, shuffle=True,
+                train_dataset, batch_size=args.batch_size, shuffle=True,
                 num_workers=1, pin_memory=True)
         val_loader = torch.utils.data.DataLoader(
                 val_dataset, batch_size=10, shuffle=False,
                 num_workers=1, pin_memory=True)
 
-        for epoch in range(EPOCH):
+        for epoch in range(args.epoch):
             train_loss, train_accu = train(train_loader, model, optimizer, epoch)
             val_loss, val_accu = val(val_loader, model, epoch)
             scheduler.step()
@@ -66,15 +74,15 @@ def main():
     prYellow('Save training/validation results===>')
     if not os.path.exists('results/'):
         os.mkdir('results/')
-    with open('results/results_%s_%s.txt' % (POOLING, NON_LOCAL), 'a+') as f:
-        f.write('%s\t%d\t%s\t%d\n' % (POOLING, NUM_KERNELS, NON_LOCAL, total_num_param))
+    with open('results/results_%s_%s.txt' % (args.pooling, args.non_local), 'a+') as f:
+        f.write('%s\t%d\t%s\t%d\n' % (args.pooling, args.num_kernels, args.non_local, total_num_param))
         for ii in range(len(TRAIN_LOSS)):
             f.write('%f %f %f %f\n' % (TRAIN_LOSS[ii], TRAIN_ACCU[ii], VAL_LOSS[ii], VAL_ACCU[ii]))
         f.write('\n')
     f.close()
 
-def train(train_loader, model, optimizer, epoch, augmentation=False):
-    print('Epoch: %03d/%d' % (epoch, EPOCH), end='\t')
+def train(train_loader, model, optimizer, epoch, augmentation=args.aug):
+    print('Epoch: %03d/%d' % (epoch, args.epoch), end='\t')
 
     total_loss = 0.0
     total_num = 0
@@ -88,6 +96,7 @@ def train(train_loader, model, optimizer, epoch, augmentation=False):
 
         if augmentation and random.random() < 0.5: 
             sample = torch.flip(sample, [1])
+            sample = torch.transpose(sample, 2, 3)
             output = model(sample)
             row_prob = output.sum(2)
         else:
@@ -114,7 +123,7 @@ def train(train_loader, model, optimizer, epoch, augmentation=False):
     return total_loss, total_accu
 
 def val(val_loader, model, epoch):
-    print('Epoch: %03d/%d' % (epoch, EPOCH), end='\t')
+    print('Epoch: %03d/%d' % (epoch, args.epoch), end='\t')
 
     total_loss = 0.0
     total_num = 0
