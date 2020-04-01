@@ -5,12 +5,12 @@ from .non_local import NONLocalBlock2D
 
 class GameModelPooling(nn.Module):
     def __init__(self, in_planes=2, out_planes=1, kernels=8, mode='max_pool', 
-                 bias=True, use_bn=False, non_local=False):
+                 bias=True, non_local=False, residual=False):
         super().__init__()
 
         assert mode in ['max_pool', 'avg_pool']
         self.mode = mode
-        self.use_bn = use_bn
+        self.residual = residual
 
         self.conv1 = nn.Conv2d(in_planes, kernels, kernel_size=1, bias=bias)
         self.conv2 = nn.Conv2d(kernels*3, kernels, kernel_size=1, bias=bias)
@@ -18,10 +18,9 @@ class GameModelPooling(nn.Module):
         self.conv4 = nn.Conv2d(kernels*3, out_planes, kernel_size=1, bias=bias)
 
         # normalization layers
-        if self.use_bn:
-            self.bn1 = nn.BatchNorm2d(kernels)
-            self.bn2 = nn.BatchNorm2d(kernels)
-            self.bn3 = nn.BatchNorm2d(kernels)
+        self.bn1 = nn.BatchNorm2d(kernels)
+        self.bn2 = nn.BatchNorm2d(kernels)
+        self.bn3 = nn.BatchNorm2d(kernels)
 
         self.non_local = non_local
         if self.non_local: 
@@ -29,28 +28,37 @@ class GameModelPooling(nn.Module):
         # weights initialization
         self._init_weight()
 
-    def forward(self, x):
-        if self.use_bn:
-            x = F.relu(self.bn1(self.conv1(x)))
-            x = self.pool_and_cat(x)
-            x = F.relu(self.bn2(self.conv2(x)))
-            x = self.pool_and_cat(x)
-            x = F.relu(self.bn3(self.conv3(x)))
-            if self.non_local: 
-                x = self.non_local_layer(x)
-            x = self.pool_and_cat(x)
-            x = self.conv4(x)
+    def _forward_residual(self, x):
+        x = F.relu(self.bn1(self.conv1(x)))
+        y = x
+        x = self.pool_and_cat(x)
+        x = F.relu(self.bn2(self.conv2(x)) + y)
+        y = x
+        x = self.pool_and_cat(x)
+        x = F.relu(self.bn3(self.conv3(x)) + y)
+        if self.non_local: 
+            x = self.non_local_layer(x)
+        x = self.pool_and_cat(x)
+        x = self.conv4(x)
+        return x
 
+    def _forward_plain(self, x):
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = self.pool_and_cat(x)
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = self.pool_and_cat(x)
+        x = F.relu(self.bn3(self.conv3(x)))
+        if self.non_local: 
+            x = self.non_local_layer(x)
+        x = self.pool_and_cat(x)
+        x = self.conv4(x)
+        return x
+
+    def forward(self, x):
+        if self.residual:
+            x = self._forward_residual(x)
         else:
-            x = F.relu(self.conv1(x))
-            x = self.pool_and_cat(x)
-            x = F.relu(self.conv2(x))
-            x = self.pool_and_cat(x)
-            x = F.relu(self.conv3(x))
-            if self.non_local: 
-                x = self.non_local_layer(x)
-            x = self.pool_and_cat(x)
-            x = self.conv4(x)
+            x = self._forward_plain(x)
 
         B, C, H, W = x.size()
         # run softmax and get marginal distribution

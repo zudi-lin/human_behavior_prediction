@@ -16,15 +16,16 @@ print('Device: ', device)
 
 parser = argparse.ArgumentParser(description='Human Behavior Prediction')
 parser.add_argument('--num-kernels', default=128, type=int, help='number of kernels')
-parser.add_argument('--pooling', default='max_pool', type=str, help='pooling mode')
+parser.add_argument('--pooling', default='avg_pool', type=str, help='pooling mode')
 parser.add_argument('--non-local', action='store_true', help='use non-local module')
-parser.add_argument('--bn', action='store_true', help='use batch normalization')
-parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+# parser.add_argument('--bn', action='store_true', help='use batch normalization')
+parser.add_argument('--lr', default=0.01, type=float, help='learning rate')
 parser.add_argument('--wd', default=5e-4, type=float, help='weight decay')
 parser.add_argument('--epoch', default=100, type=int, help='training epochs')
 parser.add_argument('--batch-size', type=int, default=16, metavar='N',
                     help='input batch size for training (default: 16)')
-parser.add_argument('--aug', action='store_true', help='use data augmentation')  
+parser.add_argument('--aug', action='store_true', help='use data augmentation') 
+parser.add_argument('--inference', action='store_true', help='inference on test data') 
 args = parser.parse_args()
 print(args)
 
@@ -39,7 +40,7 @@ def main():
         prYellow('Start training for the %d/%d cross-validation fold.' % (idx+1, N_FOLD))
 
         prGreen('==> Building model..')
-        model = GameModelPooling(kernels=args.num_kernels, use_bn=args.bn, mode=args.pooling, non_local=args.non_local)
+        model = GameModelPooling(kernels=args.num_kernels, mode=args.pooling, non_local=args.non_local, residual=True)
         model_name = model.__class__.__name__
         print('model: ', model_name)
         print('Total number of parameters: ', end='')
@@ -50,8 +51,8 @@ def main():
         optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.wd)
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[args.epoch-40, args.epoch-20], gamma=0.1)
 
-        train_dataset = GameDataset(fold_index=idx, mode='train', prob_file='data/hb_train_truth.csv', feature_file='data/hb_train_feature.csv')
-        val_dataset = GameDataset(fold_index=idx, mode='val', prob_file='data/hb_train_truth.csv', feature_file='data/hb_train_feature.csv')
+        train_dataset = GameDataset(fold_index=idx, mode='train', prob_file='data/v2/hb_train_truth.csv', feature_file='data/v2/hb_train_feature.csv')
+        val_dataset = GameDataset(fold_index=idx, mode='val', prob_file='data/v2/hb_train_truth.csv', feature_file='data/v2/hb_train_feature.csv')
         print('Number of training samples: ', len(train_dataset))
         print('Number of val samples: ', len(val_dataset))
         train_loader = torch.utils.data.DataLoader(
@@ -153,5 +154,63 @@ def val(val_loader, model, epoch):
 
         return total_loss, total_accu
 
+def test(test_loader, model, fl):
+    model.eval()
+    with torch.no_grad():
+        for i, batch in enumerate(test_loader): 
+            sample = batch['sample']
+            sample = sample.to(device)
+            output = model(sample)
+            row_prob = output.sum(3)
+
+            action = torch.argmax(row_prob, 2).squeeze() + 1
+            action = action.detach().cpu().numpy()
+            row_prob = row_prob.detach().squeeze().cpu().numpy()
+            for k in range(row_prob.shape[0]):
+                print(row_prob[k], action[k])
+                fl.write('%f,%f,%f,%d\n' % (row_prob[k][0], row_prob[k][1], row_prob[k][2], action[k]))
+
+def inference():
+    prYellow('Start training on all data for inference.')
+
+    prGreen('==> Building model..')
+    model = GameModelPooling(kernels=args.num_kernels, mode=args.pooling, non_local=args.non_local, residual=True)
+    model_name = model.__class__.__name__
+    print('model: ', model_name)
+    print('Total number of parameters: ', end='')
+    total_num_param = sum([param.nelement() for param in model.parameters()])
+    prGreen(total_num_param)
+
+    model = model.to(device)
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.wd)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[args.epoch-40, args.epoch-20], gamma=0.1)
+
+    train_dataset = GameDataset(mode='train_all', prob_file='data/v2/hb_train_truth.csv', feature_file='data/v2/hb_train_feature.csv')
+    test_dataset = GameDataset(mode='test', prob_file=None, feature_file='data/v2/hb_test_feature.csv')
+    print('Number of training samples: ', len(train_dataset))
+    print('Number of val samples: ', len(test_dataset))
+    train_loader = torch.utils.data.DataLoader(
+            train_dataset, batch_size=args.batch_size, shuffle=True,
+            num_workers=1, pin_memory=True)
+    test_loader = torch.utils.data.DataLoader(
+            test_dataset, batch_size=10, shuffle=False,
+            num_workers=1, pin_memory=True)
+
+    for epoch in range(args.epoch):
+        train_loss, train_accu = train(train_loader, model, optimizer, epoch)
+        scheduler.step()
+
+    prYellow('Finished training. Run inference ===>')
+    if not os.path.exists('results/'):
+        os.mkdir('results/')
+    fl = open('results/inference.csv', 'a+')
+    fl.write('f1,f2,f3,action\n')
+    test(test_loader, model, fl)
+    fl.close()
+    prYellow('Done!')
+
 if __name__ == '__main__':
-    main()
+    if args.inference:
+        inference()
+    else:
+        main()

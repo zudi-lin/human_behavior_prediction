@@ -15,7 +15,7 @@ class GameDataset(torch.utils.data.Dataset):
                  fold_index=0):
 
         self.mode = mode
-        assert self.mode in ['train', 'val', 'test']
+        assert self.mode in ['train', 'train_all', 'val', 'test']
         feature = np.genfromtxt(feature_file, delimiter=',', skip_header=1)
         self.mean, self.std = feature.mean(), feature.std()
         row_feature = feature[:,:9].reshape((-1,3,3))
@@ -49,6 +49,12 @@ class GameDataset(torch.utils.data.Dataset):
             self.input_data = torch.from_numpy(input_data)
             self.input_prob = torch.from_numpy(input_prob)
             self.input_action = input_action
+
+        elif self.mode == 'train_all':
+            payoff_matrix = payoff_matrix.astype(np.float32)
+            self.input_data = torch.from_numpy(payoff_matrix)
+            self.input_prob = torch.from_numpy(col_prob.astype(np.float32))
+            self.input_action = col_action.astype(np.uint8)
 
         elif self.mode == 'test':
             payoff_matrix = payoff_matrix.astype(np.float32)
