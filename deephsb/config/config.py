@@ -17,12 +17,26 @@ _C.MODEL = CN()
 _C.MODEL.IN_PLANES = 2
 _C.MODEL.OUT_PLANES = 1
 
-_C.MODEL.KERNERLS = 8
-_C.MODEL.POOLING = 'max_pool'
+_C.MODEL.KERNELS = 8
+_C.MODEL.POOLING = "max_pool"
 _C.MODEL.BIAS = True
 
 _C.MODEL.RESIDUAL = False
-_C.MODEL.NON_LOCAL = True
+_C.MODEL.NON_LOCAL = False
+
+# -----------------------------------------------------------------------------
+# Dataset
+# -----------------------------------------------------------------------------
+_C.DATASET = CN()
+_C.DATASET.NAME = ""
+
+_C.DATASET.TRAIN_FEATURE_FILE = ""
+_C.DATASET.TRAIN_PROB_FILE = ""
+
+_C.DATASET.TEST_FEATURE_FILE = ""
+
+# Data augmentation
+_C.DATASET.AUGMENTATION = False
 
 # -----------------------------------------------------------------------------
 # DataLoader
@@ -38,6 +52,8 @@ _C.SOLVER = CN()
 
 # Total number of training epoches
 _C.SOLVER.TOTAL_EPOCH = 100
+_C.SOLVER.STEPS = (70, 90)
+_C.SOLVER.GAMMA = 0.1
 
 _C.SOLVER.BASE_LR = 0.01
 
@@ -46,7 +62,7 @@ _C.SOLVER.MOMENTUM = 0.9
 _C.SOLVER.WEIGHT_DECAY = 5e-4
 
 # The weight decay that's applied to parameters of normalization layers
-# (typically the affine transformation)
+# (typically the affine transformation).
 _C.SOLVER.WEIGHT_DECAY_NORM = 0.0
 
 # Learning rate and weight decay for the bias
@@ -54,9 +70,13 @@ _C.SOLVER.WEIGHT_DECAY_NORM = 0.0
 _C.SOLVER.BIAS_LR_FACTOR = 1.0
 _C.SOLVER.WEIGHT_DECAY_BIAS = 0.0
 
-_C.SOLVER.GAMMA = 0.1
-
 _C.SOLVER.SAMPLES_PER_BATCH = 16
+
+# -----------------------------------------------------------------------------
+# Miscs
+# -----------------------------------------------------------------------------
+# Numner of folds for the cross-validation experiments on the labeled data.
+_C.N_FOLD = 5
 
 def get_cfg_defaults():
     """Get a yacs CfgNode object with default values for my_project."""

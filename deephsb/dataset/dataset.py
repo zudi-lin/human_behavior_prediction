@@ -5,14 +5,13 @@ import random
 import torch
 import torch.utils.data
 
-N_FOLD = 5
-
 class GameDataset(torch.utils.data.Dataset):
     def __init__(self,
                  mode='train',
                  feature_file='hb_train_feature.csv', 
                  prob_file=None,
-                 fold_index=0):
+                 fold_index=0,
+                 N_FOLD=5):
 
         self.mode = mode
         assert self.mode in ['train', 'train_all', 'val', 'test']

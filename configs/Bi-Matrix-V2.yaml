@@ -1,0 +1,5 @@
+DATASET:
+  NAME: BI-Matrix-V2
+  TRAIN_FEATURE_FILE: 'data/v2/hb_train_feature.csv'
+  TRAIN_PROB_FILE: 'data/v2/hb_train_truth.csv'
+  TEST_FEATURE_FILE: 'data/v2/hb_test_feature.csv'

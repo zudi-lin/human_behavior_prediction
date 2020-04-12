@@ -87,10 +87,3 @@ class GameModelPooling(nn.Module):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
-if __name__ == '__main__':
-    net = GameModelPooling(kernels=4)
-    x = torch.rand(16,2,3,3)
-    out = net(x)
-    print('I/O size: ', x.size(), out.size())
-    print(net)
-    print('Total number of parameters: ', sum([param.nelement() for param in net.parameters()]))
