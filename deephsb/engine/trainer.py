@@ -163,19 +163,39 @@ class Trainer(object):
 
     def test(self, test_loader, model, fl):
         model.eval()
+
+        if self.cfg.SAVE_JOINT_PROB:
+            out_path = os.path.join(self.output_dir, 'joint_prob')
+            if not os.path.exists(out_path):
+                os.makedirs(out_path)
+            fh = open('%s/inference.csv' % (out_path), 'a+')
+
         with torch.no_grad():
             for i, batch in enumerate(test_loader): 
                 sample = batch['sample']
                 sample = sample.to(self.device)
-                output = model(sample)
+                output = model(sample) # B,1,N,N
                 row_prob = output.sum(3)
 
                 action = torch.argmax(row_prob, 2).squeeze() + 1
                 action = action.detach().cpu().numpy()
                 row_prob = row_prob.detach().squeeze().cpu().numpy()
+
                 for k in range(row_prob.shape[0]):
                     print(row_prob[k], action[k])
                     fl.write('%f,%f,%f,%d\n' % (row_prob[k][0], row_prob[k][1], row_prob[k][2], action[k]))
+
+                if self.cfg.SAVE_JOINT_PROB:
+                    batch_size = output.size()[0]
+                    output = output.detach().cpu().view(batch_size, -1).numpy()
+                    for j in range(batch_size):
+                        for k in range(output.shape[1]-1):
+                            fh.write('%f,' % output[j,k])
+                        fh.write('%f\n' % output[j,-1])
+
+        if self.cfg.SAVE_JOINT_PROB:
+            fh.close()
+
 
     def inference(self):
         prYellow('Start training on all data for inference.')

@@ -78,6 +78,8 @@ _C.SOLVER.SAMPLES_PER_BATCH = 16
 # Numner of folds for the cross-validation experiments on the labeled data.
 _C.N_FOLD = 5
 
+_C.SAVE_JOINT_PROB = False
+
 def get_cfg_defaults():
     """Get a yacs CfgNode object with default values for my_project."""
     # Return a clone so that the defaults will not be altered
